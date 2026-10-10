@@ -19,6 +19,8 @@ function PhotoUploader() {
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [hairSegmentation, setHairSegmentation] = useState(null);
+  const [segmentingHair, setSegmentingHair] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -48,6 +50,7 @@ function PhotoUploader() {
     setGeneratedImage(null);
     setError("");
     setAnalysis(null);
+    setHairSegmentation(null);
   }
 
   async function handleGenerate() {
@@ -118,6 +121,38 @@ function PhotoUploader() {
     } finally {
       setAnalyzing(false);
     }
+}
+async function handleHairSegmentation() {
+  if (!file) return;
+
+  setSegmentingHair(true);
+  setError("");
+  setHairSegmentation(null);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch(
+      "http://localhost:8000/api/segment-hair",
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Hair segmentation failed");
+    }
+
+    setHairSegmentation(data);
+  } catch (err) {
+    setError(err.message || "Hair segmentation failed");
+  } finally {
+    setSegmentingHair(false);
+  }
 }
 
   return (
@@ -197,7 +232,62 @@ function PhotoUploader() {
             />
         </div>
         )}
+        <button
+        onClick={handleHairSegmentation}
+        disabled={!file || segmentingHair}
+        style={{ marginLeft: "10px" }}
+        >
+        {segmentingHair ? "Segmenting Hair..." : "Segment Hair"}
+        </button>
+        {hairSegmentation && (
+        <div style={{ marginTop: "30px" }}>
+         <h3>Hair Segmentation Results</h3>
 
+         <p>Hair coverage: {hairSegmentation.coverage_pct}%</p>
+
+         {hairSegmentation.hair_bounding_box && (
+           <p>
+           Hair box: x={hairSegmentation.hair_bounding_box.x},
+           y={hairSegmentation.hair_bounding_box.y},
+           w={hairSegmentation.hair_bounding_box.width},
+           h={hairSegmentation.hair_bounding_box.height}
+          </p>
+        )}
+
+        {hairSegmentation.warnings?.map((warning, index) => (
+         <p key={index} style={{ color: "orange" }}>
+         {warning}
+         </p>
+        ))}
+
+    <div
+      style={{
+        display: "flex",
+        gap: "20px",
+        flexWrap: "wrap",
+        marginTop: "15px",
+      }}
+    >
+      <div>
+        <h4>Hair Overlay</h4>
+        <img
+          src={`data:image/png;base64,${hairSegmentation.overlay_b64}`}
+          alt="Hair segmentation overlay"
+          style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+        />
+      </div>
+
+      <div>
+        <h4>Hair Mask</h4>
+        <img
+          src={`data:image/png;base64,${hairSegmentation.mask_b64}`}
+          alt="Hair segmentation mask"
+          style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+        />
+      </div>
+    </div>
+  </div>
+)}
       <div style={{ marginTop: "25px" }}>
         <button
           onClick={handleGenerate}

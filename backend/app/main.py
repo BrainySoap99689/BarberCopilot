@@ -11,6 +11,7 @@ from PIL import ImageOps
 from .generation import generate_hairstyle
 from .prompts import build_prompt
 from .vision import analyze_face
+from .hair_segmentation import segment_hair
 
 app = FastAPI()
 
@@ -168,4 +169,41 @@ async def analyze_photo(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400,
             detail="Invalid image."
+        )
+@app.post("/api/segment-hair")
+async def segment_hair_endpoint(file: UploadFile = File(...)):
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a JPEG, PNG, or WebP image."
+        )
+
+    contents = await file.read()
+
+    if len(contents) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Image is too large."
+        )
+
+    try:
+        image = Image.open(BytesIO(contents))
+
+        result = await run_in_threadpool(
+            segment_hair,
+            image
+        )
+        return result
+
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image."
+        )
+    except Exception:
+        import logging
+        logging.exception("Hair segmentation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Hair segmentation failed."
         )
