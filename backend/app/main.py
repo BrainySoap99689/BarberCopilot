@@ -4,6 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import File, UploadFile, HTTPException
 from PIL import Image, UnidentifiedImageError
 from io import BytesIO
+from fastapi import Form
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
+from PIL import ImageOps
+from .generation import generate_hairstyle
+from .prompts import build_prompt
 
 app = FastAPI()
 
@@ -55,3 +61,71 @@ async def upload_photo(file: UploadFile = File(...)):
         "width": width,
         "height": height
     }
+
+@app.post("/api/generate")
+async def generate(
+    file: UploadFile = File(...),
+    style: str = Form(...)
+):
+    try:
+        prompt = build_prompt(style)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid hairstyle selected"
+        )
+
+    if file.content_type not in (
+        "image/jpeg", "image/png", "image/webp"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload a JPEG, PNG, or WebP image"
+        )
+
+    contents = await file.read()
+
+    if len(contents) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Image is too large"
+        )
+
+    try:
+        original = Image.open(BytesIO(contents))
+        original = ImageOps.exif_transpose(original)
+        original.thumbnail((1536, 1536))
+
+        normalized = BytesIO()
+        original.convert("RGB").save(
+            normalized, format="PNG"
+        )
+        image_bytes = normalized.getvalue()
+
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image"
+        )
+
+    try:
+        generated_bytes = await run_in_threadpool(
+            generate_hairstyle,
+            image_bytes,
+            prompt
+        )
+
+    except Exception:
+        # Log details server-side without exposing secrets
+        import logging
+        logging.exception("Image generation failed")
+
+        raise HTTPException(
+            status_code=502,
+            detail="Image generation failed. Check backend logs."
+        )
+
+    return Response(
+        content=generated_bytes,
+        media_type="image/png"
+    )
