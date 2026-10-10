@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from PIL import ImageOps
 from .generation import generate_hairstyle
 from .prompts import build_prompt
+from .vision import analyze_face
 
 app = FastAPI()
 
@@ -129,3 +130,42 @@ async def generate(
         content=generated_bytes,
         media_type="image/png"
     )
+
+@app.post("/api/analyze")
+async def analyze_photo(file: UploadFile = File(...)):
+    if file.content_type not in (
+        "image/jpeg", "image/png", "image/webp"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a JPEG, PNG, or WebP image."
+        )
+
+    contents = await file.read()
+
+    if len(contents) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Image is too large."
+        )
+
+    try:
+        image = Image.open(BytesIO(contents))
+        if image.width * image.height > 20_000_000:
+            raise HTTPException(
+                status_code=413,
+                detail="Image dimensions are too large."
+            )
+
+        result = await run_in_threadpool(
+            analyze_face, image
+        )
+        return result
+
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image."
+        )

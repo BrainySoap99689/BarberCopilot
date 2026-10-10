@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import FaceLandmarkPreview from "./FaceLandmarkPreview.jsx";
 
 const styles = [
   { id: "textured_crop", name: "Textured Crop" },
@@ -16,6 +17,8 @@ function PhotoUploader() {
   const [generatedImage, setGeneratedImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [analysis, setAnalysis] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -44,6 +47,7 @@ function PhotoUploader() {
     setPreview(URL.createObjectURL(selected));
     setGeneratedImage(null);
     setError("");
+    setAnalysis(null);
   }
 
   async function handleGenerate() {
@@ -83,6 +87,38 @@ function PhotoUploader() {
       setLoading(false);
     }
   }
+  async function handleAnalyze() {
+    if (!file) return;
+
+    setAnalyzing(true);
+    setError("");
+    setAnalysis(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(
+        "http://localhost:8000/api/analyze",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Analysis failed");
+      }
+
+      setAnalysis(data);
+    } catch (err) {
+      setError(err.message || "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+}
 
   return (
     <div style={{
@@ -118,6 +154,49 @@ function PhotoUploader() {
           </option>
         ))}
       </select>
+      
+        <button
+        onClick={handleAnalyze}
+        disabled={!file || analyzing}
+        >
+        {analyzing ? "Analyzing..." : "Analyze Face"}
+        </button>
+
+        {analysis && (
+        <div>
+            <h3>Computer Vision Results</h3>
+
+            <p>
+            Face detected: {analysis.face_detected ? "Yes" : "No"}
+            </p>
+
+            <p>Faces found: {analysis.face_count}</p>
+
+            <p>
+            Landmarks detected: {analysis.landmarks.length}
+            </p>
+
+            <p>
+            Photo usable: {analysis.usable ? "Yes" : "No"}
+            </p>
+
+            {analysis.warnings?.map((warning, index) => (
+            <p key={index} style={{ color: "orange" }}>
+                {warning}
+            </p>
+            ))}
+        </div>
+        )}
+        {analysis?.face_detected && preview && (
+        <div>
+            <h3>Facial Landmark Detection</h3>
+
+            <FaceLandmarkPreview
+            imageUrl={preview}
+            analysis={analysis}
+            />
+        </div>
+        )}
 
       <div style={{ marginTop: "25px" }}>
         <button
@@ -188,3 +267,4 @@ function PhotoUploader() {
 }
 
 export default PhotoUploader;
+    
