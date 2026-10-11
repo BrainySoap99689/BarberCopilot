@@ -21,6 +21,9 @@ function PhotoUploader() {
   const [analyzing, setAnalyzing] = useState(false);
   const [hairSegmentation, setHairSegmentation] = useState(null);
   const [segmentingHair, setSegmentingHair] = useState(false);
+  const [editMaskPreview, setEditMaskPreview] = useState(null);
+  const [buildingMask, setBuildingMask] = useState(false);
+  const [generationMode, setGenerationMode] = useState("standard");
 
   useEffect(() => {
     return () => {
@@ -51,6 +54,7 @@ function PhotoUploader() {
     setError("");
     setAnalysis(null);
     setHairSegmentation(null);
+    setEditMaskPreview(null);
   }
 
   async function handleGenerate() {
@@ -63,6 +67,7 @@ function PhotoUploader() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("style", selectedStyle);
+    formData.append("mode", generationMode);
 
     try {
       const response = await fetch(
@@ -152,6 +157,38 @@ async function handleHairSegmentation() {
     setError(err.message || "Hair segmentation failed");
   } finally {
     setSegmentingHair(false);
+  }
+}
+async function handleBuildEditMask() {
+  if (!file) return;
+
+  setBuildingMask(true);
+  setError("");
+  setEditMaskPreview(null);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch(
+      "http://localhost:8000/api/debug-edit-mask",
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Edit mask generation failed");
+    }
+
+    setEditMaskPreview(data);
+  } catch (err) {
+    setError(err.message || "Edit mask generation failed");
+  } finally {
+    setBuildingMask(false);
   }
 }
 
@@ -259,35 +296,107 @@ async function handleHairSegmentation() {
          {warning}
          </p>
         ))}
+      <button
+        onClick={handleBuildEditMask}
+        disabled={!file || buildingMask}
+        style={{ marginLeft: "10px" }}
+      >
+       {buildingMask ? "Building Edit Mask..." : "Build Edit Mask"}
+      </button>
+      {editMaskPreview && (
+       <div style={{ marginTop: "30px" }}>
+       <h3>Edit Mask Debug Preview</h3>
 
-    <div
-      style={{
-        display: "flex",
-        gap: "20px",
-        flexWrap: "wrap",
-        marginTop: "15px",
-      }}
-    >
-      <div>
-        <h4>Hair Overlay</h4>
-        <img
-          src={`data:image/png;base64,${hairSegmentation.overlay_b64}`}
-          alt="Hair segmentation overlay"
-          style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
-        />
-      </div>
+        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+          <div>
+            <h4>Overlay</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.overlay_b64}`}
+              alt="Edit mask overlay"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
 
-      <div>
-        <h4>Hair Mask</h4>
-        <img
-          src={`data:image/png;base64,${hairSegmentation.mask_b64}`}
-          alt="Hair segmentation mask"
-          style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
-        />
+          <div>
+            <h4>Binary Mask</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.binary_b64}`}
+              alt="Binary edit mask"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+
+          <div>
+            <h4>Final Feathered Mask</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.final_mask_b64}`}
+              alt="Final feathered edit mask"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+          </div>
+          </div>
+          )}
+        <div
+          style={{
+            display: "flex",
+            gap: "20px",
+            flexWrap: "wrap",
+            marginTop: "15px",
+          }}
+        >
+          <div>
+            <h4>Hair Overlay</h4>
+            <img
+              src={`data:image/png;base64,${hairSegmentation.overlay_b64}`}
+              alt="Hair segmentation overlay"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+
+          <div>
+            <h4>Hair Mask</h4>
+            <img
+              src={`data:image/png;base64,${hairSegmentation.mask_b64}`}
+              alt="Hair segmentation mask"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+        </div>
       </div>
+    )}
+
+    <div style={{ marginTop: "25px" }}>
+    <h3>Generation Method</h3>
+
+    <label style={{ marginRight: "20px" }}>
+        <input
+          type="radio"
+          name="generationMode"
+          value="standard"
+          checked={generationMode === "standard"}
+          onChange={(e) => setGenerationMode(e.target.value)}
+        />
+        Standard AI
+      </label>
+
+      <label>
+        <input
+          type="radio"
+          name="generationMode"
+          value="masked"
+          checked={generationMode === "masked"}
+          onChange={(e) => setGenerationMode(e.target.value)}
+        />
+        CV-Guided AI
+      </label>
+
+      <p style={{ fontSize: "13px", color: "#888" }}>
+        CV-Guided AI uses your detected hair region
+        to guide image editing.
+      </p>
     </div>
-  </div>
-)}
+
       <div style={{ marginTop: "25px" }}>
         <button
           onClick={handleGenerate}
