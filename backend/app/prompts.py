@@ -64,3 +64,31 @@ Preserve the person's identity and facial features:
 Generate a photorealistic edited portrait.
 Do not add text or watermarks.
 """
+
+def add_view_instructions(prompt: str, view: str) -> str:
+    view_instructions = {
+        "front": """
+The photograph shows the FRONT of the person's head.
+Preserve facial identity and show the selected hairstyle
+from the front.
+""",
+        "side": """
+The photograph shows a SIDE PROFILE of the person's head.
+Preserve the original profile, ear, head shape, and camera angle.
+Show the selected haircut from the side.
+Pay particular attention to the fade height, side length,
+and blending into the longer hair on top.
+Do not rotate the person's head.
+""",
+        "back": """
+The photograph shows the BACK of the person's head.
+Maintain the rear-facing camera angle.
+Show the selected haircut from the back.
+Pay particular attention to the neckline, taper,
+fade height, and overall blending.
+Do not invent a visible face or rotate the subject.
+Preserve clothing, background, and lighting.
+"""
+    }
+
+    return prompt + "\n" + view_instructions[view]

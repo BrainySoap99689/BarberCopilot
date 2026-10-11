@@ -25,18 +25,36 @@ function PhotoUploader() {
   const [editMaskPreview, setEditMaskPreview] = useState(null);
   const [buildingMask, setBuildingMask] = useState(false);
   const [generationMode, setGenerationMode] = useState("standard");
+
   const [topLength, setTopLength] = useState(3.0);
   const [sideLength, setSideLength] = useState("2");
   const [fadeHeight, setFadeHeight] = useState("mid");
   const [texture, setTexture] = useState("natural");
   const [fringeDirection, setFringeDirection] = useState("side");
   const [generatedSettings, setGeneratedSettings] = useState(null);
+  const [sideFile, setSideFile] = useState(null);
+  const [sidePreview, setSidePreview] = useState(null);
 
+  const [backFile, setBackFile] = useState(null);
+  const [backPreview, setBackPreview] = useState(null);
+  const [multiViewResults, setMultiViewResults] = useState({});
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [multiViewProgress, setMultiViewProgress] = useState("");
+  const [multiViewSettings, setMultiViewSettings] = useState(null);
+
+  // Clean up side photo preview
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      if (sidePreview) URL.revokeObjectURL(sidePreview);
     };
-  }, [preview]);
+  }, [sidePreview]);
+
+  // Clean up back photo preview
+  useEffect(() => {
+    return () => {
+      if (backPreview) URL.revokeObjectURL(backPreview);
+    };
+  }, [backPreview]);
 
   useEffect(() => {
     return () => {
@@ -45,6 +63,13 @@ function PhotoUploader() {
       }
     };
   }, [generatedImage]);
+  useEffect(() => {
+    return () => {
+      Object.values(multiViewResults).forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+    };
+  }, [multiViewResults]);
 
   function handleFileChange(event) {
     const selected = event.target.files?.[0];
@@ -63,7 +88,46 @@ function PhotoUploader() {
     setHairSegmentation(null);
     setEditMaskPreview(null);
     setGeneratedSettings(null);
+    setMultiViewResults({});
+    setMultiViewSettings(null);
+    setMultiViewProgress("");
+    }
+
+    function handleSideFileChange(event) {
+      const selected = event.target.files?.[0];
+      if (!selected) return;
+
+      if (!["image/jpeg", "image/png", "image/webp"].includes(selected.type)) {
+        setError("Please select a valid image.");
+        return;
+      }
+
+      setSideFile(selected);
+      setSidePreview(URL.createObjectURL(selected));
+      setError("");
+      setMultiViewResults({});
+      setMultiViewSettings(null);
+      setMultiViewProgress("");
+    }
+
+    
+
+
+  function handleBackFileChange(event) {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(selected.type)) {
+      setError("Please select a valid image.");
+      return;
+    }
+
+    setBackFile(selected);
+    setBackPreview(URL.createObjectURL(selected));
+    setError("");
   }
+
+
 
   async function handleGenerate() {
     if (!file) return;
@@ -88,6 +152,7 @@ function PhotoUploader() {
         sideLength,
         fadeHeight,
         texture,
+        fringeDirection,
       };  
     
 
@@ -119,6 +184,98 @@ function PhotoUploader() {
       setLoading(false);
     }
   }
+
+  async function handleGenerateAllViews() {
+    if (!file || generatingAll) return;
+
+    setGeneratingAll(true);
+    setError("");
+    setMultiViewProgress("Preparing images...");
+
+    const settingsSnapshot = {
+      selectedStyle,
+      topLength,
+      sideLength,
+      fadeHeight,
+      texture,
+      fringeDirection,
+    };
+
+    const views = [
+      { name: "front", photo: file },
+      { name: "side", photo: sideFile },
+      { name: "back", photo: backFile },
+    ].filter((view) => view.photo !== null);
+
+    const results = {};
+
+    try {
+      for (const view of views) {
+        setMultiViewProgress(`Generating ${view.name} view...`);
+
+        const formData = new FormData();
+        formData.append("file", view.photo);
+        formData.append("view", view.name);
+        formData.append("style", selectedStyle);
+
+        // Front can use facial landmarks.
+        // Side and back currently use standard editing.
+        formData.append(
+          "mode",
+          view.name === "front" ? generationMode : "standard"
+        );
+
+        formData.append("top_length", topLength);
+        formData.append("side_length", sideLength);
+        formData.append("fade_height", fadeHeight);
+        formData.append("texture", texture);
+        formData.append("fringe_direction", fringeDirection);
+
+        const response = await fetch(
+          "http://localhost:8000/api/generate",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          let message = `Failed to generate ${view.name} view`;
+
+          try {
+            const data = await response.json();
+            if (typeof data.detail === "string") {
+              message = data.detail;
+            }
+          } catch {
+            // Keep the fallback error message.
+          }
+
+          throw new Error(message);
+        }
+
+        const imageBlob = await response.blob();
+        results[view.name] = URL.createObjectURL(imageBlob);
+      }
+
+      setMultiViewResults(results);
+      setMultiViewSettings(settingsSnapshot);
+      setMultiViewProgress("All available views generated!");
+
+    } catch (err) {
+      // If generation fails, retain successful views.
+      if (Object.keys(results).length > 0) {
+        setMultiViewResults(results);
+        setMultiViewSettings(settingsSnapshot);
+      }
+
+      setError(err.message || "Multi-view generation failed");
+      setMultiViewProgress("Generation stopped.");
+    } finally {
+      setGeneratingAll(false);
+    }
+  }
+
   async function handleAnalyze() {
     if (!file) return;
 
@@ -226,13 +383,116 @@ async function handleBuildEditMask() {
       <h1>BarberCopilot</h1>
       <p>Try a new hairstyle before your next haircut.</p>
 
-      <h2>1. Upload your photograph</h2>
+      
+      <h2>1. Upload your photographs</h2>
+
+      <p>
+        Upload a front photograph to get started.
+        Side and back photographs are optional.
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: "16px",
+        marginTop: "20px",
+      }}
+    >
+      {/* FRONT PHOTO */}
+      <div
+        style={{
+          border: "1px solid #ccc",
+          borderRadius: "12px",
+          padding: "15px",
+        }}
+      >
+      <h3>Front View *</h3>
+      <p>Required</p>
 
       <input
         type="file"
         accept="image/png,image/jpeg,image/webp"
         onChange={handleFileChange}
+        style={{ width: "100%" }}
       />
+
+      {preview && (
+        <img
+          src={preview}
+          alt="Front view preview"
+          style={{
+            width: "100%",
+            marginTop: "12px",
+            borderRadius: "8px",
+          }}
+        />
+      )}
+    </div>
+
+    {/* SIDE PHOTO */}
+    <div
+      style={{
+        border: "1px solid #ccc",
+        borderRadius: "12px",
+        padding: "15px",
+      }}
+    >
+      <h3>Side View</h3>
+      <p>Optional</p>
+
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleSideFileChange}
+        style={{ width: "100%" }}
+      />
+
+      {sidePreview && (
+        <img
+          src={sidePreview}
+          alt="Side view preview"
+          style={{
+            width: "100%",
+            marginTop: "12px",
+            borderRadius: "8px",
+          }}
+        />
+      )}
+    </div>
+
+    {/* BACK PHOTO */}
+    <div
+      style={{
+        border: "1px solid #ccc",
+        borderRadius: "12px",
+        padding: "15px",
+      }}
+    >
+      <h3>Back View</h3>
+      <p>Optional</p>
+
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handleBackFileChange}
+        style={{ width: "100%" }}
+      />
+
+      {backPreview && (
+        <img
+          src={backPreview}
+          alt="Back view preview"
+          style={{
+            width: "100%",
+            marginTop: "12px",
+            borderRadius: "8px",
+          }}
+        />
+      )}
+    </div>
+  </div>
+
 
       <h2>2. Choose a hairstyle</h2>
 
@@ -514,19 +774,49 @@ async function handleBuildEditMask() {
       </p>
     </div>
 
-      <div style={{ marginTop: "25px" }}>
+      
+    <div style={{ marginTop: "25px" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
         <button
           onClick={handleGenerate}
-          disabled={!file || loading}
+          disabled={!file || loading || generatingAll}
           style={{
             padding: "12px 22px",
             fontSize: "16px",
-            cursor: "pointer"
+            cursor: "pointer",
           }}
         >
           {loading ? "Generating..." : "Generate Hairstyle"}
         </button>
+
+        <button
+          onClick={handleGenerateAllViews}
+          disabled={!file || generatingAll || loading}
+          style={{
+            padding: "12px 22px",
+            fontSize: "16px",
+            cursor: "pointer",
+          }}
+        >
+          {generatingAll
+            ? "Generating Views..."
+            : "Generate All Views"}
+        </button>
       </div>
+
+      {multiViewProgress && (
+        <p style={{ marginTop: "12px" }}>
+          {multiViewProgress}
+        </p>
+      )}
+    </div>
+
 
       {error && (
         <p style={{ color: "red" }}>{error}</p>
@@ -580,6 +870,8 @@ async function handleBuildEditMask() {
                 />
             )}
 
+
+
             </div>
           )}
         </div>
@@ -591,6 +883,62 @@ async function handleBuildEditMask() {
           This may take a little time.
         </p>
       )}
+
+      {Object.keys(multiViewResults).length > 0 && (
+        <div style={{ marginTop: "35px" }}>
+          <h2>Multi-Angle Hairstyle Preview</h2>
+
+          <p>
+            All generated views use the same saved haircut settings.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "20px",
+            }}
+          >
+            {["front", "side", "back"].map((view) =>
+              multiViewResults[view] ? (
+                <div key={view}>
+                  <h3>
+                    {view.charAt(0).toUpperCase() + view.slice(1)}
+                    {" View"}
+                  </h3>
+
+                  <img
+                    src={multiViewResults[view]}
+                    alt={`Generated ${view} hairstyle`}
+                    style={{
+                      width: "100%",
+                      borderRadius: "12px",
+                    }}
+                  />
+
+                  <a
+                    href={multiViewResults[view]}
+                    download={`barbercopilot-${view}.png`}
+                  >
+                    Download {view} view
+                  </a>
+                </div>
+              ) : null
+            )}
+    </div>
+
+    {multiViewSettings && (
+      <p style={{ marginTop: "15px" }}>
+        Generated with {multiViewSettings.topLength.toFixed(1)}
+        -inch top, {multiViewSettings.fadeHeight} fade,
+        #{multiViewSettings.sideLength} sides,
+        {multiViewSettings.texture} texture.
+      </p>
+    )}
+  </div>
+)}
+
     </div>
   );
 }
