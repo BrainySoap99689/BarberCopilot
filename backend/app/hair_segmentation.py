@@ -20,12 +20,55 @@ def _encode_png(rgb_array: np.ndarray) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def segment_hair(image: Image.Image) -> dict:
-    # Normalize image
+MODEL_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "models"
+    / "hair_segmenter.tflite"
+)
+
+def get_hair_mask_array(image: Image.Image, threshold: float = 0.35):
     image = ImageOps.exif_transpose(image).convert("RGB")
     image.thumbnail((1280, 1280))
 
     rgb = np.array(image)
+
+    mp_image = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=np.ascontiguousarray(rgb)
+    )
+
+    options = mp.tasks.vision.ImageSegmenterOptions(
+        base_options=mp.tasks.BaseOptions(
+            model_asset_path=str(MODEL_PATH)
+        ),
+        running_mode=mp.tasks.vision.RunningMode.IMAGE,
+        output_category_mask=False,
+        output_confidence_masks=True,
+    )
+
+    with mp.tasks.vision.ImageSegmenter.create_from_options(options) as segmenter:
+        results = segmenter.segment(mp_image)
+
+    if not results.confidence_masks or len(results.confidence_masks) < 2:
+        raise RuntimeError("Hair confidence mask was not returned")
+
+    hair_mask = results.confidence_masks[1].numpy_view().copy()
+
+    hair_mask = cv2.resize(
+        hair_mask,
+        (rgb.shape[1], rgb.shape[0]),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    hair_mask = cv2.GaussianBlur(hair_mask, (7, 7), 0)
+
+    binary_mask = (hair_mask > threshold).astype(np.uint8)
+
+    return rgb, binary_mask
+
+def segment_hair(image: Image.Image) -> dict:
+    # Normalize image
+    rgb, binary_mask = get_hair_mask_array(image, threshold=0.35)
     
     # Convert NumPy RGB image into a MediaPipe image
     mp_image = mp.Image(

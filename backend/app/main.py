@@ -12,6 +12,10 @@ from .generation import generate_hairstyle
 from .prompts import build_prompt
 from .vision import analyze_face
 from .hair_segmentation import segment_hair
+from .editing_mask import build_edit_mask, pil_image_to_png_bytes
+import base64
+from .editing_mask import build_edit_mask, create_api_mask
+from .generation import generate_hairstyle_masked
 
 app = FastAPI()
 
@@ -67,14 +71,21 @@ async def upload_photo(file: UploadFile = File(...)):
 @app.post("/api/generate")
 async def generate(
     file: UploadFile = File(...),
-    style: str = Form(...)
+    style: str = Form(...),
+    mode: str = Form("standard")
 ):
+    if mode not in ("standard", "masked"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid generation mode"
+        )
+
     try:
         prompt = build_prompt(style)
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Invalid hairstyle selected"
+            detail="Invalid hairstyle"
         )
 
     if file.content_type not in (
@@ -82,43 +93,86 @@ async def generate(
     ):
         raise HTTPException(
             status_code=400,
-            detail="Upload a JPEG, PNG, or WebP image"
+            detail="Invalid image type"
         )
 
     contents = await file.read()
 
-    if len(contents) > 8 * 1024 * 1024:
-        raise HTTPException(
-            status_code=413,
-            detail="Image is too large"
-        )
-
-    try:
-        original = Image.open(BytesIO(contents))
-        original = ImageOps.exif_transpose(original)
-        original.thumbnail((1536, 1536))
-
-        normalized = BytesIO()
-        original.convert("RGB").save(
-            normalized, format="PNG"
-        )
-        image_bytes = normalized.getvalue()
-
-    except (UnidentifiedImageError, OSError, ValueError):
+    if not contents or len(contents) > 8 * 1024 * 1024:
         raise HTTPException(
             status_code=400,
-            detail="Invalid image"
+            detail="Image must be between 1 byte and 8 MB"
         )
 
     try:
-        generated_bytes = await run_in_threadpool(
-            generate_hairstyle,
-            image_bytes,
-            prompt
+        image = Image.open(BytesIO(contents))
+        image = ImageOps.exif_transpose(image)
+
+        if image.width * image.height > 20_000_000:
+            raise HTTPException(
+                status_code=413,
+                detail="Image dimensions are too large"
+            )
+
+        image = image.convert("RGB")
+        image.thumbnail((1280, 1280))
+
+        if mode == "masked":
+            # Generate an editing mask from the same
+            # normalized image used for generation.
+            mask_result = await run_in_threadpool(
+                build_edit_mask, image.copy()
+            )
+
+            normalized_image = Image.fromarray(
+                mask_result["rgb"]
+            )
+
+            mask_bytes = create_api_mask(
+                mask_result["final_mask_pil"]
+            )
+
+            # Validate matching dimensions and PNG size
+            with Image.open(BytesIO(mask_bytes)) as mask_image:
+                if mask_image.size != normalized_image.size:
+                    raise RuntimeError(
+                        "Mask and image dimensions do not match"
+                    )
+
+            if len(mask_bytes) >= 4 * 1024 * 1024:
+                raise RuntimeError("Mask exceeds 4 MB")
+
+        else:
+            normalized_image = image
+
+        buffer = BytesIO()
+        normalized_image.save(buffer, format="PNG")
+        image_bytes = buffer.getvalue()
+
+    except HTTPException:
+        raise
+    except (OSError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid input image"
         )
 
+    try:
+        if mode == "masked":
+            generated_bytes = await run_in_threadpool(
+                generate_hairstyle_masked,
+                image_bytes,
+                mask_bytes,
+                prompt
+            )
+        else:
+            generated_bytes = await run_in_threadpool(
+                generate_hairstyle,
+                image_bytes,
+                prompt
+            )
+
     except Exception:
-        # Log details server-side without exposing secrets
         import logging
         logging.exception("Image generation failed")
 
@@ -131,6 +185,7 @@ async def generate(
         content=generated_bytes,
         media_type="image/png"
     )
+
 
 @app.post("/api/analyze")
 async def analyze_photo(file: UploadFile = File(...)):
@@ -206,4 +261,50 @@ async def segment_hair_endpoint(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=500,
             detail="Hair segmentation failed."
+        )
+@app.post("/api/debug-edit-mask")
+async def debug_edit_mask(file: UploadFile = File(...)):
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a JPEG, PNG, or WebP image."
+        )
+
+    contents = await file.read()
+
+    if len(contents) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Image is too large."
+        )
+
+    try:
+        image = Image.open(BytesIO(contents))
+
+        result = await run_in_threadpool(build_edit_mask, image)
+
+        overlay_b64 = base64.b64encode(
+            pil_image_to_png_bytes(Image.fromarray(result["overlay"]))
+        ).decode("utf-8")
+
+        binary_b64 = base64.b64encode(
+            pil_image_to_png_bytes(Image.fromarray(result["edit_mask_binary"]))
+        ).decode("utf-8")
+
+        final_mask_b64 = base64.b64encode(
+            pil_image_to_png_bytes(result["final_mask_pil"])
+        ).decode("utf-8")
+
+        return {
+            "overlay_b64": overlay_b64,
+            "binary_b64": binary_b64,
+            "final_mask_b64": final_mask_b64,
+        }
+
+    except Exception:
+        import logging
+        logging.exception("Edit mask generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Edit mask generation failed."
         )
