@@ -251,8 +251,11 @@ async def analyze_photo(file: UploadFile = File(...)):
         return result
 
     except HTTPException:
-        raise
+            raise
+
     except (UnidentifiedImageError, OSError, ValueError):
+        import logging
+        logging.exception("Face analysis failed")
         raise HTTPException(
             status_code=400,
             detail="Invalid image."
