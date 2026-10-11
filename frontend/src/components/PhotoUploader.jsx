@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import FaceLandmarkPreview from "./FaceLandmarkPreview.jsx";
 import BarberCard from "./BarberCard";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 const styles = [
   { id: "textured_crop", name: "Textured Crop" },
   { id: "modern_quiff", name: "Modern Quiff" },
@@ -24,7 +27,7 @@ function PhotoUploader() {
   const [segmentingHair, setSegmentingHair] = useState(false);
   const [editMaskPreview, setEditMaskPreview] = useState(null);
   const [buildingMask, setBuildingMask] = useState(false);
-  const [generationMode, setGenerationMode] = useState("standard");
+  const [generationMode, setGenerationMode] = useState("masked");
 
   const [topLength, setTopLength] = useState(3.0);
   const [sideLength, setSideLength] = useState("2");
@@ -159,7 +162,7 @@ function PhotoUploader() {
 
     try {
       const response = await fetch(
-        "http://localhost:8000/api/generate",
+        `${API_BASE_URL}/api/generate`,
         {
           method: "POST",
           body: formData,
@@ -232,7 +235,7 @@ function PhotoUploader() {
         formData.append("fringe_direction", fringeDirection);
 
         const response = await fetch(
-          "http://localhost:8000/api/generate",
+          `${API_BASE_URL}/api/generate`,
           {
             method: "POST",
             body: formData,
@@ -288,7 +291,7 @@ function PhotoUploader() {
 
     try {
       const response = await fetch(
-        "http://localhost:8000/api/analyze",
+        `${API_BASE_URL}/api/analyze`,
         {
           method: "POST",
           body: formData,
@@ -320,7 +323,7 @@ async function handleHairSegmentation() {
 
   try {
     const response = await fetch(
-      "http://localhost:8000/api/segment-hair",
+      `${API_BASE_URL}/api/segment-hair`,
       {
         method: "POST",
         body: formData,
@@ -352,7 +355,7 @@ async function handleBuildEditMask() {
 
   try {
     const response = await fetch(
-      "http://localhost:8000/api/debug-edit-mask",
+      `${API_BASE_URL}/api/debug-edit-mask`,
       {
         method: "POST",
         body: formData,
@@ -373,42 +376,43 @@ async function handleBuildEditMask() {
   }
 }
 
-  return (
-    <div style={{
-      maxWidth: "850px",
-      margin: "40px auto",
-      padding: "20px",
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <h1>BarberCopilot</h1>
-      <p>Try a new hairstyle before your next haircut.</p>
+  
+return (
+  <main className="barber-app">
+    <header className="barber-header">
+      <div className="barber-logo">✂</div>
 
-      
-      <h2>1. Upload your photographs</h2>
+      <div>
+        <h1>BarberCopilot</h1>
+        <p>Your next haircut, before the chair.</p>
+      </div>
+    </header>
+
+    <section className="barber-section">
+      <div className="section-heading">
+        <span className="section-number">01</span>
+        <div>
+          <h2>Upload your photos</h2>
+          <p>
+            Start with a front photograph. Add side and back
+            views for a complete haircut preview.
+          </p>
+        </div>
+      </div>
+
 
       <p>
         Upload a front photograph to get started.
         Side and back photographs are optional.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-          gap: "16px",
-        marginTop: "20px",
-      }}
-    >
+      
+    <div className="photo-upload-grid">
       {/* FRONT PHOTO */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          borderRadius: "12px",
-          padding: "15px",
-        }}
-      >
-      <h3>Front View *</h3>
-      <p>Required</p>
+      <div className="photo-upload-card front-card">
+        <span className="upload-badge required">Required</span>
+        <h3>Front View</h3>
+        <p>Look directly at the camera.</p>
 
       <input
         type="file"
@@ -417,7 +421,7 @@ async function handleBuildEditMask() {
         style={{ width: "100%" }}
       />
 
-      {preview && (
+      {preview ? (
         <img
           src={preview}
           alt="Front view preview"
@@ -426,20 +430,20 @@ async function handleBuildEditMask() {
             marginTop: "12px",
             borderRadius: "8px",
           }}
-        />
-      )}
+          />
+        ) : (
+          <div className="upload-placeholder">
+            <span className="upload-placeholder-icon">↑</span>
+            <span>Front photo preview</span>
+          </div>
+        )}
     </div>
 
     {/* SIDE PHOTO */}
-    <div
-      style={{
-        border: "1px solid #ccc",
-        borderRadius: "12px",
-        padding: "15px",
-      }}
-    >
+    <div className="photo-upload-card side-card">
+      <span className="upload-badge optional">Optional</span>
       <h3>Side View</h3>
-      <p>Optional</p>
+      <p>Turn your head 90° to one side.</p>
 
       <input
         type="file"
@@ -462,15 +466,10 @@ async function handleBuildEditMask() {
     </div>
 
     {/* BACK PHOTO */}
-    <div
-      style={{
-        border: "1px solid #ccc",
-        borderRadius: "12px",
-        padding: "15px",
-      }}
-    >
+    <div className="photo-upload-card back-card">
+      <span className="upload-badge optional">Optional</span>
       <h3>Back View</h3>
-      <p>Optional</p>
+      <p>Show the back of your head clearly.</p>
 
       <input
         type="file"
@@ -490,11 +489,11 @@ async function handleBuildEditMask() {
           }}
         />
       )}
-    </div>
+        </div>
   </div>
+</section>
 
-
-      <h2>2. Choose a hairstyle</h2>
+<h2>2. Choose a hairstyle</h2>
 
       <select
         value={selectedStyle}
@@ -586,24 +585,79 @@ async function handleBuildEditMask() {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: "20px",
-          padding: "15px",
-          border: "1px solid #ccc",
-          borderRadius: "10px",
-          background: "#f8f8f8",
-        }}
-      >
-        <h3>Live Haircut Specification</h3>
-        <p><strong>Base Style:</strong> {selectedStyle.replace("_", " ")}</p>
-        <p><strong>Top Length:</strong> {topLength.toFixed(1)} inches</p>
-        <p><strong>Side Length:</strong> Guard {sideLength}</p>
-        <p><strong>Fade Height:</strong> {fadeHeight}</p>
-        <p><strong>Texture:</strong> {texture}</p>
-        <p><strong>Fringe Direction:</strong> {fringeDirection}</p>
-      </div>
       
+<div className="haircut-summary">
+  <div className="haircut-summary-header">
+    <div>
+      <span className="haircut-summary-eyebrow">
+        YOUR HAIRCUT DESIGN
+      </span>
+
+      <h3>
+        {styles.find((style) => style.id === selectedStyle)?.name}
+      </h3>
+
+      <p>Your current customization settings</p>
+    </div>
+
+    <div className="haircut-summary-icon">
+      ✂
+    </div>
+  </div>
+
+  <div className="haircut-summary-grid">
+    <div className="haircut-summary-item">
+      <span>Top length</span>
+      <strong>{topLength.toFixed(1)} inches</strong>
+    </div>
+
+    <div className="haircut-summary-item">
+      <span>Side length</span>
+      <strong>#{sideLength} guard</strong>
+    </div>
+
+    <div className="haircut-summary-item">
+      <span>Fade height</span>
+      <strong>
+        {fadeHeight.charAt(0).toUpperCase() + fadeHeight.slice(1)}
+      </strong>
+    </div>
+
+    <div className="haircut-summary-item">
+      <span>Texture</span>
+      <strong>
+        {texture.charAt(0).toUpperCase() + texture.slice(1)}
+      </strong>
+    </div>
+
+    <div className="haircut-summary-item">
+      <span>Fringe direction</span>
+      <strong>
+        {fringeDirection === "back"
+          ? "Swept back"
+          : fringeDirection === "side"
+          ? "Swept to the side"
+          : "Forward"}
+      </strong>
+    </div>
+  </div>
+</div>
+
+        
+  {generationMode === "masked" && (
+    <details className="advanced-analysis">
+      <summary>Advanced AI Analysis (Optional)</summary>
+
+      <p>
+        Explore how BarberCopilot detects facial landmarks,
+        identifies hair, and builds editing masks.
+        These tools are for visualization and debugging.
+        They run automatically when needed for CV-guided
+        front-view generation.
+      </p>
+
+      <div className="analysis-tools">
+
         <button
         onClick={handleAnalyze}
         disabled={!file || analyzing}
@@ -668,52 +722,13 @@ async function handleBuildEditMask() {
           </p>
         )}
 
+        
         {hairSegmentation.warnings?.map((warning, index) => (
-         <p key={index} style={{ color: "orange" }}>
-         {warning}
-         </p>
+          <p key={index} style={{ color: "orange" }}>
+            {warning}
+          </p>
         ))}
-      <button
-        onClick={handleBuildEditMask}
-        disabled={!file || buildingMask}
-        style={{ marginLeft: "10px" }}
-      >
-       {buildingMask ? "Building Edit Mask..." : "Build Edit Mask"}
-      </button>
-      {editMaskPreview && (
-       <div style={{ marginTop: "30px" }}>
-       <h3>Edit Mask Debug Preview</h3>
 
-        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-          <div>
-            <h4>Overlay</h4>
-            <img
-              src={`data:image/png;base64,${editMaskPreview.overlay_b64}`}
-              alt="Edit mask overlay"
-              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
-            />
-          </div>
-
-          <div>
-            <h4>Binary Mask</h4>
-            <img
-              src={`data:image/png;base64,${editMaskPreview.binary_b64}`}
-              alt="Binary edit mask"
-              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
-            />
-          </div>
-
-          <div>
-            <h4>Final Feathered Mask</h4>
-            <img
-              src={`data:image/png;base64,${editMaskPreview.final_mask_b64}`}
-              alt="Final feathered edit mask"
-              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
-            />
-          </div>
-          </div>
-          </div>
-          )}
         <div
           style={{
             display: "flex",
@@ -743,10 +758,59 @@ async function handleBuildEditMask() {
       </div>
     )}
 
-    <div style={{ marginTop: "25px" }}>
-    <h3>Generation Method</h3>
+    <button
+      onClick={handleBuildEditMask}
+      disabled={!file || buildingMask}
+      style={{ marginLeft: "10px" }}
+    >
+      {buildingMask ? "Building Edit Mask..." : "Build Edit Mask"}
+    </button>
 
-    <label style={{ marginRight: "20px" }}>
+    {editMaskPreview && (
+      <div style={{ marginTop: "30px" }}>
+        <h3>Edit Mask Debug Preview</h3>
+
+        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+          <div>
+            <h4>Overlay</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.overlay_b64}`}
+              alt="Edit mask overlay"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+
+          <div>
+            <h4>Binary Mask</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.binary_b64}`}
+              alt="Binary edit mask"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+
+          <div>
+            <h4>Final Feathered Mask</h4>
+            <img
+              src={`data:image/png;base64,${editMaskPreview.final_mask_b64}`}
+              alt="Final feathered edit mask"
+              style={{ width: "300px", maxWidth: "100%", borderRadius: "10px" }}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+
+  </div>
+</details>
+)}
+
+
+    <div style={{ marginTop: "25px" }}>
+      <h3>Generation Method</h3>
+
+
+      <label style={{ marginRight: "20px" }}>
         <input
           type="radio"
           name="generationMode"
@@ -768,54 +832,90 @@ async function handleBuildEditMask() {
         CV-Guided AI
       </label>
 
-      <p style={{ fontSize: "13px", color: "#888" }}>
-        CV-Guided AI uses your detected hair region
-        to guide image editing.
-      </p>
+      <div className="mode-explanation">
+        {generationMode === "masked" ? (
+          <p>
+            <strong>CV-Guided AI:</strong> Automatically analyzes
+            your face and hair to guide hairstyle editing.
+            You do not need to click any analysis buttons.
+          </p>
+        ) : (
+          <p>
+            <strong>Standard AI:</strong> Generates your hairstyle
+            directly without using the computer-vision editing mask.
+          </p>
+        )}
+
+        <small>
+          In multi-angle mode, computer-vision guidance currently
+          applies to the front view. Side and back views use
+          standard AI editing.
+        </small>
+      </div>
     </div>
 
-      
-    <div style={{ marginTop: "25px" }}>
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          onClick={handleGenerate}
-          disabled={!file || loading || generatingAll}
-          style={{
-            padding: "12px 22px",
-            fontSize: "16px",
-            cursor: "pointer",
-          }}
-        >
-          {loading ? "Generating..." : "Generate Hairstyle"}
-        </button>
 
-        <button
-          onClick={handleGenerateAllViews}
-          disabled={!file || generatingAll || loading}
-          style={{
-            padding: "12px 22px",
-            fontSize: "16px",
-            cursor: "pointer",
-          }}
-        >
+      
+    
+<div className="generation-panel">
+  <div className="generation-panel-heading">
+    <h2>Generate your haircut preview</h2>
+    <p>
+      Preview one hairstyle or generate every uploaded angle.
+      Your current haircut settings will be used.
+    </p>
+  </div>
+
+  <div className="generation-actions">
+    <button
+      className="generate-primary"
+      onClick={handleGenerate}
+      disabled={!file || loading || generatingAll}
+    >
+      <span className="generation-button-icon">✦</span>
+
+      <span>
+        <strong>
+          {loading ? "Generating..." : "Generate Hairstyle"}
+        </strong>
+        <small>Preview your front view</small>
+      </span>
+    </button>
+
+    <button
+      className="generate-secondary"
+      onClick={handleGenerateAllViews}
+      disabled={!file || generatingAll || loading}
+    >
+      <span className="generation-button-icon">▦</span>
+
+      <span>
+        <strong>
           {generatingAll
             ? "Generating Views..."
             : "Generate All Views"}
-        </button>
-      </div>
+        </strong>
+        <small>Preview front, side, and back</small>
+      </span>
+    </button>
+  </div>
 
-      {multiViewProgress && (
-        <p style={{ marginTop: "12px" }}>
-          {multiViewProgress}
-        </p>
-      )}
+  {(loading || generatingAll) && (
+    <div className="generation-loading" role="status">
+      <span className="generation-spinner" />
+      <span>
+        {generatingAll
+          ? multiViewProgress || "Preparing your views..."
+          : "AI is creating your hairstyle preview..."}
+      </span>
     </div>
+  )}
+
+  {!loading && !generatingAll && multiViewProgress && (
+    <p className="generation-status">{multiViewProgress}</p>
+  )}
+</div>
+
 
 
       {error && (
@@ -884,62 +984,88 @@ async function handleBuildEditMask() {
         </p>
       )}
 
-      {Object.keys(multiViewResults).length > 0 && (
-        <div style={{ marginTop: "35px" }}>
-          <h2>Multi-Angle Hairstyle Preview</h2>
-
-          <p>
-            All generated views use the same saved haircut settings.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "20px",
-            }}
-          >
-            {["front", "side", "back"].map((view) =>
-              multiViewResults[view] ? (
-                <div key={view}>
-                  <h3>
-                    {view.charAt(0).toUpperCase() + view.slice(1)}
-                    {" View"}
-                  </h3>
-
-                  <img
-                    src={multiViewResults[view]}
-                    alt={`Generated ${view} hairstyle`}
-                    style={{
-                      width: "100%",
-                      borderRadius: "12px",
-                    }}
-                  />
-
-                  <a
-                    href={multiViewResults[view]}
-                    download={`barbercopilot-${view}.png`}
-                  >
-                    Download {view} view
-                  </a>
-                </div>
-              ) : null
-            )}
+      
+{Object.keys(multiViewResults).length > 0 && (
+  <section className="results-panel">
+    <div className="results-heading">
+      <div>
+        <span className="results-eyebrow">YOUR RESULTS</span>
+        <h2>Multi-Angle Hairstyle Preview</h2>
+        <p>
+          Explore your new haircut from each uploaded angle.
+        </p>
+      </div>
+      <span className="results-count">
+        {Object.keys(multiViewResults).length} views
+      </span>
     </div>
 
-    {multiViewSettings && (
-      <p style={{ marginTop: "15px" }}>
-        Generated with {multiViewSettings.topLength.toFixed(1)}
-        -inch top, {multiViewSettings.fadeHeight} fade,
-        #{multiViewSettings.sideLength} sides,
-        {multiViewSettings.texture} texture.
-      </p>
-    )}
+    <div className="results-grid">
+      {["front", "side", "back"].map((view) =>
+        multiViewResults[view] ? (
+          <article className="result-card" key={view}>
+            <div className="result-image">
+              <img
+                src={multiViewResults[view]}
+                alt={`Generated ${view} hairstyle`}
+              />
+            </div>
+
+            <div className="result-card-footer">
+              <h3>
+                {view.charAt(0).toUpperCase() + view.slice(1)} View
+              </h3>
+
+              <a
+                href={multiViewResults[view]}
+                download={`barbercopilot-${view}.png`}
+              >
+                Download image ↓
+              </a>
+            </div>
+          </article>
+        ) : null
+      )}
+    </div>
+
+    
+{multiViewSettings && (
+  <div className="results-specification">
+    <strong>Generated haircut:</strong>{" "}
+    {multiViewSettings.topLength.toFixed(1)}-inch top ·
+    {" "}#{multiViewSettings.sideLength} sides ·
+    {" "}{multiViewSettings.fadeHeight} fade ·
+    {" "}{multiViewSettings.texture} texture ·
+    {" "}Fringe: {
+      multiViewSettings.fringeDirection === "back"
+        ? "Swept back"
+        : multiViewSettings.fringeDirection === "side"
+        ? "Swept to the side"
+        : "Forward"
+    }
   </div>
 )}
 
-    </div>
+{multiViewResults.front && multiViewSettings && (
+  <div className="multi-view-barber-card">
+    <BarberCard
+      selectedStyle={multiViewSettings.selectedStyle}
+      topLength={multiViewSettings.topLength}
+      sideLength={multiViewSettings.sideLength}
+      fadeHeight={multiViewSettings.fadeHeight}
+      texture={multiViewSettings.texture}
+      fringeDirection={multiViewSettings.fringeDirection}
+      generatedImage={multiViewResults.front}
+      generatedViews={multiViewResults}
+    />
+  </div>
+)}
+
+  </section>
+)}
+
+
+    </main>
   );
 }
 
