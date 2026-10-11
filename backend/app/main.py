@@ -16,6 +16,7 @@ from .editing_mask import build_edit_mask, pil_image_to_png_bytes
 import base64
 from .editing_mask import build_edit_mask, create_api_mask
 from .generation import generate_hairstyle_masked
+from .prompts import build_prompt, add_view_instructions
 
 app = FastAPI()
 
@@ -77,8 +78,14 @@ async def generate(
     side_length: str = Form(...),
     fade_height: str = Form(...),
     texture: str = Form(...),
-    fringe_direction: str = Form(...)
+    fringe_direction: str = Form(...),
+    view: str = Form("front")
 ):
+    if view not in {"front", "side", "back"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid camera angle"
+        )
     if mode not in ("standard", "masked"):
         raise HTTPException(
             status_code=400,
@@ -94,6 +101,7 @@ async def generate(
                 texture=texture,
                 fringe_direction=fringe_direction,
         )
+        prompt = add_view_instructions(prompt, view)
     except ValueError:
         raise HTTPException(
             status_code=400,
@@ -129,7 +137,7 @@ async def generate(
         image = image.convert("RGB")
         image.thumbnail((1280, 1280))
 
-        if mode == "masked":
+        if mode == "masked" and view == "front":
             # Generate an editing mask from the same
             # normalized image used for generation.
             mask_result = await run_in_threadpool(
