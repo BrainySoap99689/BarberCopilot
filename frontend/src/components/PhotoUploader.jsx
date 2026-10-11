@@ -30,6 +30,7 @@ function PhotoUploader() {
   const [fadeHeight, setFadeHeight] = useState("mid");
   const [texture, setTexture] = useState("natural");
   const [fringeDirection, setFringeDirection] = useState("side");
+  const [generatedSettings, setGeneratedSettings] = useState(null);
 
   useEffect(() => {
     return () => {
@@ -61,6 +62,7 @@ function PhotoUploader() {
     setAnalysis(null);
     setHairSegmentation(null);
     setEditMaskPreview(null);
+    setGeneratedSettings(null);
   }
 
   async function handleGenerate() {
@@ -79,6 +81,16 @@ function PhotoUploader() {
     formData.append("fade_height", fadeHeight);
     formData.append("texture", texture);
     formData.append("fringe_direction", fringeDirection);
+
+    const settingsSnapshot = {
+        selectedStyle,
+        topLength,
+        sideLength,
+        fadeHeight,
+        texture,
+      };  
+    
+
 
     try {
       const response = await fetch(
@@ -100,6 +112,7 @@ function PhotoUploader() {
       const imageURL = URL.createObjectURL(imageBlob);
 
       setGeneratedImage(imageURL);
+      setGeneratedSettings(settingsSnapshot);
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -555,16 +568,16 @@ async function handleBuildEditMask() {
                 </a>
               </p>
 
-              {generatedImage && (
-              <BarberCard
-                selectedStyle={selectedStyle}
-                topLength={topLength}
-                sideLength={sideLength}
-                fadeHeight={fadeHeight}
-                texture={texture}
-                fringeDirection={fringeDirection}
-                generatedImage={generatedImage}
-              />
+              {generatedImage && generatedSettings && (
+                <BarberCard
+                  selectedStyle={generatedSettings.selectedStyle}
+                  topLength={generatedSettings.topLength}
+                  sideLength={generatedSettings.sideLength}
+                  fadeHeight={generatedSettings.fadeHeight}
+                  texture={generatedSettings.texture}
+                  fringeDirection={generatedSettings.fringeDirection}
+                  generatedImage={generatedImage}
+                />
             )}
 
             </div>
