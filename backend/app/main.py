@@ -178,7 +178,7 @@ async def generate(
         )
 
     try:
-        if mode == "masked":
+        if mode == "masked" and view == "front":
             generated_bytes = await run_in_threadpool(
                 generate_hairstyle_masked,
                 image_bytes,
