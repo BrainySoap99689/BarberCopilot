@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import FaceLandmarkPreview from "./FaceLandmarkPreview.jsx";
+import BarberCard from "./BarberCard";
 
 const styles = [
   { id: "textured_crop", name: "Textured Crop" },
@@ -24,6 +25,11 @@ function PhotoUploader() {
   const [editMaskPreview, setEditMaskPreview] = useState(null);
   const [buildingMask, setBuildingMask] = useState(false);
   const [generationMode, setGenerationMode] = useState("standard");
+  const [topLength, setTopLength] = useState(3.0);
+  const [sideLength, setSideLength] = useState("2");
+  const [fadeHeight, setFadeHeight] = useState("mid");
+  const [texture, setTexture] = useState("natural");
+  const [fringeDirection, setFringeDirection] = useState("side");
 
   useEffect(() => {
     return () => {
@@ -68,6 +74,11 @@ function PhotoUploader() {
     formData.append("file", file);
     formData.append("style", selectedStyle);
     formData.append("mode", generationMode);
+    formData.append("top_length", topLength);
+    formData.append("side_length", sideLength);
+    formData.append("fade_height", fadeHeight);
+    formData.append("texture", texture);
+    formData.append("fringe_direction", fringeDirection);
 
     try {
       const response = await fetch(
@@ -226,6 +237,99 @@ async function handleBuildEditMask() {
           </option>
         ))}
       </select>
+      <div style={{ marginTop: "25px" }}>
+        <h2>3. Customize the haircut</h2>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label>
+            Top Length: {topLength.toFixed(1)} inches
+          </label>
+          <br />
+          <input
+            type="range"
+            min="1"
+            max="6"
+            step="0.5"
+            value={topLength}
+            onChange={(e) => setTopLength(parseFloat(e.target.value))}
+            style={{ width: "300px" }}
+          />
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label>Side Length (Guard): </label>
+          <select
+            value={sideLength}
+            onChange={(e) => setSideLength(e.target.value)}
+            style={{ padding: "8px", marginLeft: "10px" }}
+          >
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="6">6</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label>Fade Height: </label>
+          <select
+            value={fadeHeight}
+            onChange={(e) => setFadeHeight(e.target.value)}
+            style={{ padding: "8px", marginLeft: "10px" }}
+          >
+            <option value="low">Low</option>
+            <option value="mid">Mid</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label>Texture: </label>
+          <select
+            value={texture}
+            onChange={(e) => setTexture(e.target.value)}
+            style={{ padding: "8px", marginLeft: "10px" }}
+          >
+            <option value="natural">Natural</option>
+            <option value="messy">Messy</option>
+            <option value="defined">Defined</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label>Fringe Direction: </label>
+          <select
+            value={fringeDirection}
+            onChange={(e) => setFringeDirection(e.target.value)}
+            style={{ padding: "8px", marginLeft: "10px" }}
+          >
+            <option value="forward">Forward</option>
+            <option value="side">Side</option>
+            <option value="back">Back</option>
+          </select>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "20px",
+          padding: "15px",
+          border: "1px solid #ccc",
+          borderRadius: "10px",
+          background: "#f8f8f8",
+        }}
+      >
+        <h3>Live Haircut Specification</h3>
+        <p><strong>Base Style:</strong> {selectedStyle.replace("_", " ")}</p>
+        <p><strong>Top Length:</strong> {topLength.toFixed(1)} inches</p>
+        <p><strong>Side Length:</strong> Guard {sideLength}</p>
+        <p><strong>Fade Height:</strong> {fadeHeight}</p>
+        <p><strong>Texture:</strong> {texture}</p>
+        <p><strong>Fringe Direction:</strong> {fringeDirection}</p>
+      </div>
       
         <button
         onClick={handleAnalyze}
@@ -450,6 +554,19 @@ async function handleBuildEditMask() {
                   Download Preview
                 </a>
               </p>
+
+              {generatedImage && (
+              <BarberCard
+                selectedStyle={selectedStyle}
+                topLength={topLength}
+                sideLength={sideLength}
+                fadeHeight={fadeHeight}
+                texture={texture}
+                fringeDirection={fringeDirection}
+                generatedImage={generatedImage}
+              />
+            )}
+
             </div>
           )}
         </div>

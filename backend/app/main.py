@@ -72,7 +72,12 @@ async def upload_photo(file: UploadFile = File(...)):
 async def generate(
     file: UploadFile = File(...),
     style: str = Form(...),
-    mode: str = Form("standard")
+    mode: str = Form("standard"),
+    top_length: float = Form(...),
+    side_length: str = Form(...),
+    fade_height: str = Form(...),
+    texture: str = Form(...),
+    fringe_direction: str = Form(...)
 ):
     if mode not in ("standard", "masked"):
         raise HTTPException(
@@ -81,7 +86,14 @@ async def generate(
         )
 
     try:
-        prompt = build_prompt(style)
+        prompt = build_prompt(
+                style_id=style,
+                top_length=top_length,
+                side_length=side_length,
+                fade_height=fade_height,
+                texture=texture,
+                fringe_direction=fringe_direction,
+        )
     except ValueError:
         raise HTTPException(
             status_code=400,

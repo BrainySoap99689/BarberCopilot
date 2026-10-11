@@ -109,3 +109,29 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #barber-card,
+  #barber-card * {
+    visibility: visible !important;
+  }
+
+  #barber-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  #barber-card .no-print {
+    display: none !important;
+  }
+}
